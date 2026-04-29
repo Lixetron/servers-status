@@ -1,1 +1,9 @@
-[]
+[
+  {
+    "time": "2026-04-29T22:23:39Z",
+    "services": {
+      "lixetron.top": "up",
+      "byl04ka.duckdns.org": "up"
+    }
+  }
+]
