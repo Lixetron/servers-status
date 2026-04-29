@@ -11,6 +11,7 @@ jobs:
 
     steps:
       - name: Check servers
+        id: check
         run: |
           check() {
             HOST=$1
@@ -27,30 +28,28 @@ jobs:
 
           NOW=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
-          cat <<EOF > status.json
-  {
-    "updated": "$NOW",
-    "services": {
-      "lixetron.top": "$LIX",
-      "byl04ka.duckdns.org": "$BYL"
-    }
-  }
-  EOF
+          JSON=$(jq -n \
+            --arg time "$NOW" \
+            --arg lix "$LIX" \
+            --arg byl "$BYL" \
+            '{
+              updated: $time,
+              services: {
+                "lixetron.top": $lix,
+                "byl04ka.duckdns.org": $byl
+              }
+            }')
 
-- name: Update Gist
-  env:
-    GITHUB_TOKEN: ${{ secrets.GIST_TOKEN }}
-    GIST_ID: ${{ secrets.GIST_ID }}
-  run: |
-    curl -X PATCH "https://api.github.com/gists/$GIST_ID" \
-      -H "Authorization: Bearer $GITHUB_TOKEN" \
-      -H "Content-Type: application/json" \
-      -d @- <<EOF
-  {
-    "files": {
-      "status.json": {
-        "content": $(cat status.json | jq -Rs .)
-      }
-    }
-  }
-  EOF
+          echo "$JSON" > status.json
+
+      - name: Update Gist
+        env:
+          TOKEN: ${{ secrets.GIST_TOKEN }}
+          GIST_ID: ${{ secrets.GIST_ID }}
+        run: |
+          CONTENT=$(cat status.json | jq -Rs .)
+
+          curl -X PATCH "https://api.github.com/gists/$GIST_ID" \
+            -H "Authorization: Bearer $TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "{\"files\": {\"status.json\": {\"content\": $CONTENT }}}"
