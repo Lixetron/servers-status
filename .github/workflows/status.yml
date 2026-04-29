@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Check servers
+      - name: Check Servers
         id: check
         run: |
           check() {
