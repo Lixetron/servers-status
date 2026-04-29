@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Status</title>
+    <title>Server Status</title>
     <meta name="viewport"
           content="width=device-width, initial-scale=1.0">
 
@@ -49,35 +49,20 @@
         }
 
         .status {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            font-weight: 500;
-        }
-
-        .dot {
-            width: 10px;
-            height: 10px;
-            border-radius: 50%;
+            font-weight: 600;
         }
 
         .up {
-            background: #22c55e;
+            color: #22c55e;
         }
 
         .down {
-            background: #ef4444;
-        }
-
-        .footer {
-            margin-top: 20px;
-            font-size: 13px;
-            color: #64748b;
+            color: #ef4444;
         }
 
         .overall {
             margin-bottom: 20px;
-            font-weight: 600;
+            font-weight: 700;
         }
 
         .overall.up {
@@ -88,31 +73,14 @@
             color: #ef4444;
         }
 
-        .timeline {
-            display: flex;
-            gap: 2px;
-            margin-top: 6px;
-        }
-
-        .bar {
-            width: 6px;
-            height: 20px;
-            border-radius: 2px;
-        }
-
-        .bar.up {
-            background: #22c55e;
-        }
-
-        .bar.down {
-            background: #ef4444;
-        }
-
-        .service-block {
-            margin-bottom: 20px;
+        .footer {
+            margin-top: 20px;
+            font-size: 13px;
+            color: #64748b;
         }
     </style>
 </head>
+
 <body>
     <div class="container">
         <h1>System Status</h1>
@@ -123,7 +91,6 @@
                  class="overall">Checking...
             </div>
             <div id="services"></div>
-            <div id="history"></div>
         </div>
 
         <div class="footer"
@@ -131,9 +98,11 @@
     </div>
 
     <script>
+        const GIST_URL = 'https://gist.githubusercontent.com/Lixetron/f07cb01096c75e67d813fc3fe6a0bb99/raw/status.json';
+
         async function loadStatus() {
             try {
-                const res = await fetch('status.json?' + Date.now());
+                const res = await fetch(GIST_URL + '?t=' + Date.now());
                 const data = await res.json();
 
                 const servicesDiv = document.getElementById('services');
@@ -152,8 +121,7 @@
 
                     el.innerHTML = `
             <div>${name}</div>
-            <div class="status">
-              <div class="dot ${status}"></div>
+            <div class="status ${status}">
               ${status.toUpperCase()}
             </div>
           `;
@@ -170,73 +138,14 @@
                 updatedDiv.textContent = 'Last updated: ' + data.updated;
 
             } catch (e) {
-                document.getElementById('overall').textContent = 'Error loading status';
-            }
-        }
-
-        function calculateUptime(history, service) {
-            let up = 0;
-            for (const entry of history) {
-                if (entry.services[service] === 'up') up++;
-            }
-            return ((up / history.length) * 100).toFixed(2);
-        }
-
-        async function loadHistory() {
-            try {
-                const res = await fetch('history.json?' + Date.now());
-                const history = await res.json();
-
-                if (!history.length) return;
-
-                const container = document.getElementById('history');
-                container.innerHTML = '';
-
-                const services = Object.keys(history[0].services);
-
-                for (const service of services) {
-                    const uptime = calculateUptime(history, service);
-
-                    const block = document.createElement('div');
-                    block.className = 'service-block';
-
-                    const title = document.createElement('div');
-                    title.textContent = `${service} — ${uptime}% uptime`;
-
-                    if (uptime < 99) {
-                        title.style.color = '#ef4444';
-                    }
-
-                    const timeline = document.createElement('div');
-                    timeline.className = 'timeline';
-
-                    for (const entry of history) {
-                        const bar = document.createElement('div');
-                        bar.className = 'bar ' + entry.services[service];
-
-                        const date = new Date(entry.time);
-                        bar.title = `${service}
-${entry.services[service].toUpperCase()}
-${date.toLocaleString()}`;
-
-                        timeline.appendChild(bar);
-                    }
-
-                    block.appendChild(title);
-                    block.appendChild(timeline);
-                    container.appendChild(block);
-                }
-
-            } catch (e) {
-                console.error('History load error', e);
+                document.getElementById('overall').textContent =
+                    'Error loading status';
             }
         }
 
         loadStatus();
-        loadHistory();
 
         setInterval(loadStatus, 30000);
-        setInterval(loadHistory, 60000);
     </script>
 </body>
 </html>
