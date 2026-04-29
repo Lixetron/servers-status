@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Status</title>
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1.0">
+
+    <style>
+        body {
+            margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: #0f172a;
+            color: #e2e8f0;
+        }
+
+        .container {
+            max-width: 700px;
+            margin: 60px auto;
+            padding: 20px;
+        }
+
+        h1 {
+            font-size: 28px;
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            color: #94a3b8;
+            margin-bottom: 30px;
+        }
+
+        .card {
+            background: #1e293b;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+        }
+
+        .service {
+            display: flex;
+            justify-content: space-between;
+            padding: 12px 0;
+            border-bottom: 1px solid #334155;
+        }
+
+        .service:last-child {
+            border-bottom: none;
+        }
+
+        .status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 500;
+        }
+
+        .dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+        }
+
+        .up {
+            background: #22c55e;
+        }
+
+        .down {
+            background: #ef4444;
+        }
+
+        .footer {
+            margin-top: 20px;
+            font-size: 13px;
+            color: #64748b;
+        }
+
+        .overall {
+            margin-bottom: 20px;
+            font-weight: 600;
+        }
+
+        .overall.up {
+            color: #22c55e;
+        }
+
+        .overall.down {
+            color: #ef4444;
+        }
+
+        .timeline {
+            display: flex;
+            gap: 2px;
+            margin-top: 6px;
+        }
+
+        .bar {
+            width: 6px;
+            height: 20px;
+            border-radius: 2px;
+        }
+
+        .bar.up {
+            background: #22c55e;
+        }
+
+        .bar.down {
+            background: #ef4444;
+        }
+
+        .service-block {
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>System Status</h1>
+        <div class="subtitle">Live server availability</div>
+
+        <div class="card">
+            <div id="overall"
+                 class="overall">Checking...
+            </div>
+            <div id="services"></div>
+            <div id="history"></div>
+        </div>
+
+        <div class="footer"
+             id="updated"></div>
+    </div>
+
+    <script>
+        async function loadStatus() {
+            try {
+                const res = await fetch('status.json?' + Date.now());
+                const data = await res.json();
+
+                const servicesDiv = document.getElementById('services');
+                const overallDiv = document.getElementById('overall');
+                const updatedDiv = document.getElementById('updated');
+
+                servicesDiv.innerHTML = '';
+
+                let allUp = true;
+
+                for (const [name, status] of Object.entries(data.services)) {
+                    if (status !== 'up') allUp = false;
+
+                    const el = document.createElement('div');
+                    el.className = 'service';
+
+                    el.innerHTML = `
+            <div>${name}</div>
+            <div class="status">
+              <div class="dot ${status}"></div>
+              ${status.toUpperCase()}
+            </div>
+          `;
+
+                    servicesDiv.appendChild(el);
+                }
+
+                overallDiv.textContent = allUp
+                    ? 'All systems operational'
+                    : 'Some systems are down';
+
+                overallDiv.className = 'overall ' + (allUp ? 'up' : 'down');
+
+                updatedDiv.textContent = 'Last updated: ' + data.updated;
+
+            } catch (e) {
+                document.getElementById('overall').textContent = 'Error loading status';
+            }
+        }
+
+        function calculateUptime(history, service) {
+            let up = 0;
+            for (const entry of history) {
+                if (entry.services[service] === 'up') up++;
+            }
+            return ((up / history.length) * 100).toFixed(2);
+        }
+
+        async function loadHistory() {
+            try {
+                const res = await fetch('history.json?' + Date.now());
+                const history = await res.json();
+
+                if (!history.length) return;
+
+                const container = document.getElementById('history');
+                container.innerHTML = '';
+
+                const services = Object.keys(history[0].services);
+
+                for (const service of services) {
+                    const uptime = calculateUptime(history, service);
+
+                    const block = document.createElement('div');
+                    block.className = 'service-block';
+
+                    const title = document.createElement('div');
+                    title.textContent = `${service} — ${uptime}% uptime`;
+
+                    if (uptime < 99) {
+                        title.style.color = '#ef4444';
+                    }
+
+                    const timeline = document.createElement('div');
+                    timeline.className = 'timeline';
+
+                    for (const entry of history) {
+                        const bar = document.createElement('div');
+                        bar.className = 'bar ' + entry.services[service];
+
+                        const date = new Date(entry.time);
+                        bar.title = `${service}
+${entry.services[service].toUpperCase()}
+${date.toLocaleString()}`;
+
+                        timeline.appendChild(bar);
+                    }
+
+                    block.appendChild(title);
+                    block.appendChild(timeline);
+                    container.appendChild(block);
+                }
+
+            } catch (e) {
+                console.error('History load error', e);
+            }
+        }
+
+        loadStatus();
+        loadHistory();
+
+        setInterval(loadStatus, 30000);
+        setInterval(loadHistory, 60000);
+    </script>
+</body>
+</html>

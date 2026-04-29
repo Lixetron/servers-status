@@ -1,0 +1,68 @@
+name: Server Status
+
+on:
+  schedule:
+    - cron: "*/2 * * * *"
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install jq
+        run: sudo apt-get update && sudo apt-get install -y jq
+
+      - name: Check servers and update history
+        run: |
+          check() {
+            HOST=$1
+            timeout 5 bash -c "</dev/tcp/$HOST/443" 2>/dev/null
+            if [ $? -eq 0 ]; then
+              echo "up"
+            else
+              echo "down"
+            fi
+          }
+
+          # реальные проверки
+          LIX_REAL=$(check "reload.pl.lixetron.top")
+          BYL_REAL=$(check "bubblegum.byl04ka.duckdns.org")
+
+          NOW=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+          mkdir -p docs
+
+          if [ ! -f docs/history.json ]; then
+            echo "[]" > docs/history.json
+          fi
+
+          # новая запись (с "красивыми" именами)
+          NEW_ENTRY=$(jq -n \
+            --arg time "$NOW" \
+            --arg lix "$LIX_REAL" \
+            --arg byl "$BYL_REAL" \
+            '{time: $time, services: {"lixetron.top": $lix, "byl04ka.duckdns.org": $byl}}')
+
+          # храним последние 720 записей (~24 часа)
+          jq ". + [$NEW_ENTRY] | .[-720:]" docs/history.json > docs/history_tmp.json
+          mv docs/history_tmp.json docs/history.json
+
+          # текущий статус
+          echo "{
+            \"updated\": \"$NOW\",
+            \"services\": {
+              \"lixetron.top\": \"$LIX_REAL\",
+              \"byl04ka.duckdns.org\": \"$BYL_REAL\"
+            }
+          }" > docs/status.json
+
+      - name: Commit changes
+        run: |
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          git add docs/status.json docs/history.json
+          git commit -m "Update status + history" || exit 0
+          git push
