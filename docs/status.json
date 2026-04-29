@@ -1,7 +1,7 @@
 {
-    "updated": "init",
-    "services": {
-        "lixetron.top": "down",
-        "byl04ka.duckdns.org": "down"
-    }
+  "updated": "2026-04-29T22:23:39Z",
+  "services": {
+    "lixetron.top": "up",
+    "byl04ka.duckdns.org": "up"
+  }
 }
