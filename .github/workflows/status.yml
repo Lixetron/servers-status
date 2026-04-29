@@ -46,7 +46,7 @@ jobs:
             --arg byl "$BYL_REAL" \
             '{time: $time, services: {"lixetron.top": $lix, "byl04ka.duckdns.org": $byl}}')
 
-          # храним последние 720 записей (~24 часа)
+          # храним последние 720 записей (~24 часа )
           jq ". + [$NEW_ENTRY] | .[-720:]" docs/history.json > docs/history_tmp.json
           mv docs/history_tmp.json docs/history.json
 
