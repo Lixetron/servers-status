@@ -73,14 +73,13 @@ export async function loadAll(options = {}) {
     const refreshHistory = options.refreshHistory === true || !isHistoryCacheFresh();
 
     try {
-        const qs = `?t=${Date.now()}`;
         let data;
         let history;
 
         if (refreshHistory) {
             const [stRes, hiRes] = await Promise.all([
-                fetch(apiUrl(`/api/status${qs}`)),
-                fetch(apiUrl(`/api/history${qs}`)),
+                fetch(apiUrl('/api/status')),
+                fetch(apiUrl('/api/history')),
             ]);
 
             data = await stRes.json();
@@ -88,7 +87,7 @@ export async function loadAll(options = {}) {
             historyCache = Array.isArray(history) ? history : [];
             historyCacheAt = Date.now();
         } else {
-            const stRes = await fetch(apiUrl(`/api/status${qs}`));
+            const stRes = await fetch(apiUrl('/api/status'));
 
             data = await stRes.json();
             history = Array.isArray(historyCache) ? historyCache : [];

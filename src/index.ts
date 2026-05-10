@@ -13,6 +13,10 @@ const MAX_HISTORY = 1000;
 /** HTTP-triggered refresh if cron has not run recently (e.g. right after deploy). */
 const MAX_SNAPSHOT_AGE_MS = 2 * 60 * 1000;
 
+/** Edge Cache API TTL (seconds). Короче для статуса, дольше для тяжёлой истории. */
+const CACHE_STATUS_SEC = 30;
+const CACHE_HISTORY_SEC = 120;
+
 /** Per-request probe budget; parallel probes use this each (not stacked serially). */
 const PROBE_TIMEOUT_MS = 8000;
 
@@ -214,12 +218,42 @@ function noStoreHtml(res: Response): Response {
     });
 }
 
+/** Ключ без query string — один URL для Cache API при любых `?t=` на клиенте. */
+function stableApiCacheKey(request: Request, pathname: string): Request {
+    const u = new URL(request.url);
+
+    return new Request(`${u.origin}${pathname}`, {
+        method: 'GET',
+        headers: request.headers,
+    });
+}
+
+function jsonApiResponse(data: unknown, edgeCacheSeconds: number): Response {
+    /** max-age=0: браузер не держит ответ и ходит на сеть при каждом poll; s-maxage: общий edge-кэш Cloudflare (меньше D1). */
+    return new Response(JSON.stringify(data), {
+        headers: {
+            'content-type': 'application/json; charset=utf-8',
+            'cache-control': `public, max-age=0, s-maxage=${edgeCacheSeconds}, must-revalidate`,
+            'access-control-allow-origin': '*',
+        },
+    });
+}
+
 export default {
-    async fetch(request: Request, env: Env): Promise<Response> {
+    async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
         const url = new URL(request.url);
         const path = url.pathname;
 
         if (request.method === 'GET' && path.startsWith('/api/')) {
+            if (path === '/api/status' || path === '/api/history') {
+                const cacheKey = stableApiCacheKey(request, path);
+                const cached = await caches.default.match(cacheKey);
+
+                if (cached) {
+                    return cached;
+                }
+            }
+
             await ensureSnapshotFresh(env);
 
             if (path === '/api/status') {
@@ -228,17 +262,12 @@ export default {
                 ).first<{time: string; services: string}>();
 
                 if (!row) {
-                    return Response.json(
+                    return jsonApiResponse(
                         {
                             updated: null,
                             services: {},
                         },
-                        {
-                            headers: {
-                                'cache-control': 'no-store',
-                                'access-control-allow-origin': '*',
-                            },
-                        },
+                        Math.min(10, CACHE_STATUS_SEC),
                     );
                 }
 
@@ -247,12 +276,11 @@ export default {
                     services: parseServicesColumn(row.services),
                 };
 
-                return Response.json(body, {
-                    headers: {
-                        'cache-control': 'no-store',
-                        'access-control-allow-origin': '*',
-                    },
-                });
+                const res = jsonApiResponse(body, CACHE_STATUS_SEC);
+
+                ctx.waitUntil(caches.default.put(stableApiCacheKey(request, path), res.clone()));
+
+                return res;
             }
 
             if (path === '/api/history') {
@@ -267,12 +295,11 @@ export default {
                     services: parseServicesColumn(row.services),
                 }));
 
-                return Response.json(payload, {
-                    headers: {
-                        'cache-control': 'no-store',
-                        'access-control-allow-origin': '*',
-                    },
-                });
+                const res = jsonApiResponse(payload, CACHE_HISTORY_SEC);
+
+                ctx.waitUntil(caches.default.put(stableApiCacheKey(request, path), res.clone()));
+
+                return res;
             }
 
             return new Response('Not Found', { status: 404 });
