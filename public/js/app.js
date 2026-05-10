@@ -1,7 +1,20 @@
-import {apiUrl, HISTORY_ROWS} from './config.js';
+import {apiUrl, HISTORY_CACHE_TTL_MS, HISTORY_ROWS} from './config.js';
 import {renderActivityBoard} from './activity.js';
 import {formatAvailabilityPercent, formatLocalDateTime} from './format.js';
 import {t} from './i18n.js';
+
+/** @type {unknown[] | null} */
+let historyCache = null;
+/** @type {number | null} */
+let historyCacheAt = null;
+
+function isHistoryCacheFresh() {
+    return (
+        Array.isArray(historyCache) &&
+        historyCacheAt !== null &&
+        Date.now() - historyCacheAt < HISTORY_CACHE_TTL_MS
+    );
+}
 
 /**
  * Доступность по истории: доля проверок со статусом `up` среди явных `up`/`down`.
@@ -43,7 +56,12 @@ function availabilityPercentFromHistory(serviceName, history) {
     return (100 * ups) / total;
 }
 
-export async function loadAll() {
+/**
+ * @param {{refreshHistory?: boolean}} [options]
+ * - По умолчанию история берётся из кэша, пока не истёк TTL — тогда запрашивается `/api/history`.
+ * - `refreshHistory: true` — всегда запросить историю (первый заход, сброс).
+ */
+export async function loadAll(options = {}) {
     const overallDiv = document.getElementById('overall');
     const servicesDiv = document.getElementById('services');
     const updatedDiv = document.getElementById('updated');
@@ -52,14 +70,29 @@ export async function loadAll() {
     const historyEmpty = document.getElementById('history-empty');
     const activityEmpty = document.getElementById('activity-empty');
 
+    const refreshHistory = options.refreshHistory === true || !isHistoryCacheFresh();
+
     try {
         const qs = `?t=${Date.now()}`;
-        const [stRes, hiRes] = await Promise.all([
-            fetch(apiUrl(`/api/status${qs}`)),
-            fetch(apiUrl(`/api/history${qs}`)),
-        ]);
-        const data = await stRes.json();
-        const history = await hiRes.json();
+        let data;
+        let history;
+
+        if (refreshHistory) {
+            const [stRes, hiRes] = await Promise.all([
+                fetch(apiUrl(`/api/status${qs}`)),
+                fetch(apiUrl(`/api/history${qs}`)),
+            ]);
+
+            data = await stRes.json();
+            history = await hiRes.json();
+            historyCache = Array.isArray(history) ? history : [];
+            historyCacheAt = Date.now();
+        } else {
+            const stRes = await fetch(apiUrl(`/api/status${qs}`));
+
+            data = await stRes.json();
+            history = Array.isArray(historyCache) ? historyCache : [];
+        }
 
         servicesDiv.innerHTML = '';
 

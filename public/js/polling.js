@@ -7,7 +7,7 @@ import {
 import {t} from './i18n.js';
 
 let pollTimer = null;
-/** @type {(() => Promise<void>) | null} */
+/** @type {((opts?: {refreshHistory?: boolean}) => Promise<void>) | null} */
 let pollingLoadFn = null;
 
 function effectivePollIntervalMs() {
@@ -119,7 +119,7 @@ export function startLivePolling(loadFn) {
     window.addEventListener('online', () => {
         updateLiveLabel();
 
-        void loadFn();
+        void loadFn({refreshHistory: true});
 
         armTimer();
     });

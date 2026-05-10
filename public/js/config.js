@@ -21,6 +21,9 @@ const POLL_MS = {
 export const HISTORY_ROWS = 100;
 export const ACTIVITY_MAX_CELLS = 72;
 
+/** Как долго не запрашивать `/api/history` повторно (снижает чтения D1). Статус обновляется каждый тик polling. */
+export const HISTORY_CACHE_TTL_MS = 5 * 60 * 1000;
+
 export function apiUrl(path) {
     return `${WORKER_API_ORIGIN || ''}${path}`;
 }
