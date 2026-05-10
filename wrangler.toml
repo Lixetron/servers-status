@@ -1,9 +1,8 @@
-# D1: npx wrangler d1 create servers-status
-# затем подставьте database_id ниже и: npm run d1:apply:remote
-#
 name = "status"
 main = "src/index.ts"
 compatibility_date = "2025-05-01"
+workers_dev = false
+preview_urls = false
 
 [triggers]
 crons = ["* * * * *"]
