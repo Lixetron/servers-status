@@ -1,5 +1,4 @@
 .idea
 node_modules/
 .wrangler/
-package-lock.json
 public/css/*.css
