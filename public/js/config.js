@@ -1,5 +1,5 @@
 /**
- * База URL для API (`/api/status`, `/api/history`):
+ * База URL для API (`/api/status`, `/api/history`, `/api/history/delta`):
  * — Один origin с Worker: оставьте '' (относительные запросы).
  * — Только статика (GitHub Pages, `npm run preview:static`): укажите URL Worker без слэша в конце.
  */
@@ -18,6 +18,7 @@ const POLL_MS = {
     '60': 60_000,
 };
 
+/** Число почасовых записей в UI и в кэше; то же N, что `MAX_HISTORY` в `src/index.ts` (Worker). */
 export const HISTORY_ROWS = 100;
 
 /** Если ширина контейнера ещё не известна (0), ограничение по числу ячеек активности. */
@@ -34,6 +35,9 @@ export const HISTORY_CACHE_TTL_MS = 45 * 60 * 1000;
  * Запрос истории через столько миллисекунд после начала календарного UTC-часа (буфер под минутный cron и финализацию часа в Worker).
  */
 export const HISTORY_REFRESH_AFTER_UTC_HOUR_MS = 90_000;
+
+/** Полная перезагрузка `/api/history` раз в этот интервал (подтягивает усечение хвоста на сервере). Инкремент — `delta`. */
+export const HISTORY_FULL_RESYNC_MS = 24 * 60 * 60 * 1000;
 
 export function apiUrl(path) {
     return `${WORKER_API_ORIGIN || ''}${path}`;

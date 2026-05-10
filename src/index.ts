@@ -9,7 +9,10 @@ const SERVERS: { name: string; url: string }[] = [
     },
 ];
 
-const MAX_HISTORY = 1000;
+/** Хранение и выдача истории: не больше последних N почасовых записей. */
+const MAX_HISTORY = 100;
+/** Строк за один запрос `/api/history/delta` (новых часов за раз столько не будет). */
+const MAX_HISTORY_DELTA = 64;
 /** HTTP-triggered refresh if cron has not run recently (e.g. right after deploy). */
 const MAX_SNAPSHOT_AGE_MS = 2 * 60 * 1000;
 
@@ -404,6 +407,34 @@ export default {
             }
 
             await ensureSnapshotFresh(env);
+
+            if (path === '/api/history/delta') {
+                const since = url.searchParams.get('since');
+
+                if (!since || Number.isNaN(Date.parse(since))) {
+                    return new Response(JSON.stringify({error: 'invalid_since'}), {
+                        status: 400,
+                        headers: {
+                            'content-type': 'application/json; charset=utf-8',
+                            'cache-control': 'no-store',
+                            'access-control-allow-origin': '*',
+                        },
+                    });
+                }
+
+                const {results} = await env.DB.prepare(
+                    'SELECT time, services FROM history WHERE time > ? ORDER BY time DESC LIMIT ?',
+                )
+                    .bind(since, MAX_HISTORY_DELTA)
+                    .all<{time: string; services: string}>();
+
+                const payload = (results ?? []).map((row) => ({
+                    time: row.time,
+                    services: parseHistoryRowServices(row.services),
+                }));
+
+                return jsonApiResponse(payload, 0);
+            }
 
             if (path === '/api/status') {
                 const row = await env.DB.prepare(

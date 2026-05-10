@@ -1,4 +1,9 @@
-import {apiUrl, HISTORY_CACHE_TTL_MS, HISTORY_ROWS} from './config.js';
+import {
+    apiUrl,
+    HISTORY_CACHE_TTL_MS,
+    HISTORY_FULL_RESYNC_MS,
+    HISTORY_ROWS,
+} from './config.js';
 import {renderActivityBoard} from './activity.js';
 import {formatAvailabilityPercent, formatLocalDateTime, formatOutageRangesTitle} from './format.js';
 import {downtimeFractionInHour, parseHistoryServiceStatus} from './historyStatus.js';
@@ -8,6 +13,78 @@ import {t} from './i18n.js';
 let historyCache = null;
 /** @type {number | null} */
 let historyCacheAt = null;
+/** Время успешной полной загрузки `/api/history` (для инкрементальных delta-запросов). */
+let lastHistoryFullFetchAt = null;
+
+/**
+ * @param {unknown[]} base
+ * @param {unknown[]} delta
+ */
+function mergeHistoryDelta(base, delta) {
+    if (!Array.isArray(base)) {
+        return [];
+    }
+
+    if (!Array.isArray(delta) || delta.length === 0) {
+        return base.slice();
+    }
+
+    const map = new Map();
+
+    for (let i = 0; i < delta.length; i++) {
+        const r = delta[i];
+
+        if (r && typeof r === 'object' && r.time) {
+            map.set(String(r.time), r);
+        }
+    }
+
+    for (let i = 0; i < base.length; i++) {
+        const r = base[i];
+
+        if (r && typeof r === 'object' && r.time) {
+            const k = String(r.time);
+
+            if (!map.has(k)) {
+                map.set(k, r);
+            }
+        }
+    }
+
+    const merged = Array.from(map.values()).sort((a, b) =>
+        String(b.time).localeCompare(String(a.time)),
+    );
+
+    return merged.slice(0, HISTORY_ROWS);
+}
+
+async function fetchHistoryFull() {
+    const hiRes = await fetch(apiUrl('/api/history'));
+
+    if (!hiRes.ok) {
+        return [];
+    }
+
+    const j = await hiRes.json();
+
+    return Array.isArray(j) ? j : [];
+}
+
+/**
+ * @param {string} sinceIso — уже имеющийся самый новый `time` в кэше (новее этого ищем в delta).
+ */
+async function fetchHistoryDelta(sinceIso) {
+    const u = `${apiUrl('/api/history/delta')}?since=${encodeURIComponent(sinceIso)}`;
+    const dRes = await fetch(u);
+
+    if (!dRes.ok) {
+        return null;
+    }
+
+    const j = await dRes.json();
+
+    return Array.isArray(j) ? j : null;
+}
 
 function isHistoryCacheFresh() {
     return (
@@ -62,9 +139,10 @@ function availabilityPercentFromHistory(serviceName, history) {
 }
 
 /**
- * @param {{refreshHistory?: boolean}} [options]
- * - По умолчанию история берётся из кэша, пока не истёк TTL — тогда запрашивается `/api/history`.
- * - `refreshHistory: true` — всегда запросить историю (первый заход, сброс).
+ * @param {{refreshHistory?: boolean; historyRefresh?: 'full' | 'incremental'}} [options]
+ * - По умолчанию история берётся из кэша, пока не истёк TTL — тогда запрашивается история с сервера.
+ * - `refreshHistory: true` — обновить историю с сервера (полная или delta см. ниже).
+ * - `historyRefresh: 'full'` — принудительно только `GET /api/history`.
  */
 export async function loadAll(options = {}) {
     const overallDiv = document.getElementById('overall');
@@ -82,13 +160,37 @@ export async function loadAll(options = {}) {
         let history;
 
         if (refreshHistory) {
-            const [stRes, hiRes] = await Promise.all([
-                fetch(apiUrl('/api/status')),
-                fetch(apiUrl('/api/history')),
-            ]);
+            const stRes = await fetch(apiUrl('/api/status'));
 
             data = await stRes.json();
-            history = await hiRes.json();
+
+            const newestKnown =
+                options.historyRefresh !== 'full' &&
+                Array.isArray(historyCache) &&
+                historyCache.length > 0 &&
+                historyCache[0]?.time
+                    ? String(historyCache[0].time)
+                    : null;
+
+            const needsFullResync =
+                options.historyRefresh === 'full' ||
+                lastHistoryFullFetchAt === null ||
+                Date.now() - lastHistoryFullFetchAt >= HISTORY_FULL_RESYNC_MS;
+
+            if (needsFullResync || !newestKnown) {
+                history = await fetchHistoryFull();
+                lastHistoryFullFetchAt = Date.now();
+            } else {
+                const delta = await fetchHistoryDelta(newestKnown);
+
+                if (delta !== null) {
+                    history = mergeHistoryDelta(historyCache ?? [], delta);
+                } else {
+                    history = await fetchHistoryFull();
+                    lastHistoryFullFetchAt = Date.now();
+                }
+            }
+
             historyCache = Array.isArray(history) ? history : [];
             historyCacheAt = Date.now();
         } else {
