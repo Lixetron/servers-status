@@ -2,3 +2,4 @@
 node_modules/
 .wrangler/
 public/css/*.css
+package-lock.json

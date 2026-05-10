@@ -4,7 +4,7 @@ import {
     HISTORY_FULL_RESYNC_MS,
     HISTORY_ROWS,
 } from './config.js';
-import {renderActivityBoard} from './activity.js';
+import {orderedHistoryRowServiceNames, renderActivityBoard} from './activity.js';
 import {formatAvailabilityPercent, formatLocalDateTime, formatOutageRangesTitle} from './format.js';
 import {downtimeFractionInHour, parseHistoryServiceStatus} from './historyStatus.js';
 import {t} from './i18n.js';
@@ -160,7 +160,7 @@ export async function loadAll(options = {}) {
         let history;
 
         if (refreshHistory) {
-            const stRes = await fetch(apiUrl('/api/status'));
+            const stRes = await fetch(apiUrl('/api/status'), {cache: 'no-store'});
 
             data = await stRes.json();
 
@@ -194,7 +194,7 @@ export async function loadAll(options = {}) {
             historyCache = Array.isArray(history) ? history : [];
             historyCacheAt = Date.now();
         } else {
-            const stRes = await fetch(apiUrl('/api/status'));
+            const stRes = await fetch(apiUrl('/api/status'), {cache: 'no-store'});
 
             data = await stRes.json();
             history = Array.isArray(historyCache) ? historyCache : [];
@@ -291,21 +291,16 @@ export async function loadAll(options = {}) {
                 const tdSvc = document.createElement('td');
                 tdSvc.className = 'history-services-cell';
 
-                const entries = Object.entries(row.services || {});
+                const rowServices = row.services || {};
+                const names = orderedHistoryRowServiceNames(data.services || {}, rowServices);
 
-                for (const kv of entries) {
-                    const idx = entries.indexOf(kv);
-                    const name = kv[0];
-                    const st = kv[1];
-
-                    if (idx > 0) {
-                        const dot = document.createElement('span');
-
-                        dot.className = 'history-svc-dot';
-                        dot.textContent = ' · ';
-                        tdSvc.appendChild(dot);
+                for (let i = 0; i < names.length; i++) {
+                    if (i > 0) {
+                        tdSvc.appendChild(document.createTextNode('\n'));
                     }
 
+                    const name = names[i];
+                    const st = rowServices[name];
                     const entry = document.createElement('span');
                     entry.className = 'history-svc-entry';
 

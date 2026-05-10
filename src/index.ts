@@ -1,13 +1,8 @@
-const SERVERS: { name: string; url: string }[] = [
-    {
-        name: 'lixetron.top',
-        url: 'https://reload.pl.lixetron.top',
-    },
-    {
-        name: 'byl04ka.duckdns.org',
-        url: 'https://bubblegum.byl04ka.duckdns.org',
-    },
-];
+import SERVERS_CONFIG from './servers.json';
+
+type HttpServer = {name: string; url: string};
+
+const SERVERS: HttpServer[] = SERVERS_CONFIG as HttpServer[];
 
 /** Хранение и выдача истории: не больше последних N почасовых записей. */
 const MAX_HISTORY = 100;
@@ -16,8 +11,6 @@ const MAX_HISTORY_DELTA = 64;
 /** HTTP-triggered refresh if cron has not run recently (e.g. right after deploy). */
 const MAX_SNAPSHOT_AGE_MS = 2 * 60 * 1000;
 
-/** Edge Cache API TTL (seconds). Короче для статуса, дольше для тяжёлой истории. */
-const CACHE_STATUS_SEC = 30;
 /** Edge Cache API для `/api/history`: браузер всё равно с max-age=0 ходит на сеть, но общий edge-кэш CF реже бьёт в D1. */
 const CACHE_HISTORY_SEC = 600;
 
@@ -391,13 +384,25 @@ function jsonApiResponse(data: unknown, edgeCacheSeconds: number): Response {
     });
 }
 
+/** Живой статус: без Worker Cache API и без HTTP-кэша — каждый poll отдаёт свежий снимок из D1. */
+function jsonLiveStatusResponse(data: unknown): Response {
+    return new Response(JSON.stringify(data), {
+        headers: {
+            'content-type': 'application/json; charset=utf-8',
+            'cache-control': 'no-store',
+            'access-control-allow-origin': '*',
+        },
+    });
+}
+
 export default {
     async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
         const url = new URL(request.url);
         const path = url.pathname;
 
         if (request.method === 'GET' && path.startsWith('/api/')) {
-            if (path === '/api/status' || path === '/api/history') {
+            /** Только история — тяжёлая; `/api/status` намеренно не кэшируем (poll чаще, чем был TTL Cache API). */
+            if (path === '/api/history') {
                 const cacheKey = stableApiCacheKey(request, path);
                 const cached = await caches.default.match(cacheKey);
 
@@ -442,13 +447,10 @@ export default {
                 ).first<{updated: string; services: string}>();
 
                 if (!row) {
-                    return jsonApiResponse(
-                        {
-                            updated: null,
-                            services: {},
-                        },
-                        Math.min(10, CACHE_STATUS_SEC),
-                    );
+                    return jsonLiveStatusResponse({
+                        updated: null,
+                        services: {},
+                    });
                 }
 
                 const body: StatusPayload = {
@@ -456,11 +458,7 @@ export default {
                     services: parseLiveServicesColumn(row.services),
                 };
 
-                const res = jsonApiResponse(body, CACHE_STATUS_SEC);
-
-                ctx.waitUntil(caches.default.put(stableApiCacheKey(request, path), res.clone()));
-
-                return res;
+                return jsonLiveStatusResponse(body);
             }
 
             if (path === '/api/history') {

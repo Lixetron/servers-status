@@ -50,6 +50,26 @@ function orderedActivityServiceNames(currentServices, nameSet) {
 }
 
 /**
+ * Порядок имён в строке «Последние проверки»: как у карточек статуса, затем алфавит для остальных из этой почасовой записи.
+ *
+ * @param {Record<string, unknown> | null | undefined} currentServices
+ * @param {Record<string, unknown> | null | undefined} rowServices
+ * @returns {string[]}
+ */
+export function orderedHistoryRowServiceNames(currentServices, rowServices) {
+    /** @type {Record<string, true>} */
+    const nameSet = Object.create(null);
+
+    if (rowServices && typeof rowServices === 'object') {
+        for (const k of Object.keys(rowServices)) {
+            nameSet[k] = true;
+        }
+    }
+
+    return orderedActivityServiceNames(currentServices, nameSet);
+}
+
+/**
  * Сколько квадратиков помещается по ширине полосы (без горизонтального скролла).
  *
  * @param {number} scrollPx
