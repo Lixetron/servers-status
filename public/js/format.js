@@ -37,6 +37,28 @@ export function formatLocalDateTime(iso) {
 }
 
 /** Доля 0–100 → строка процента в локали интерфейса (например `98,5 %`). */
+/**
+ * Интервалы простоя для подсказки: каждая строка «с … по …».
+ *
+ * @param {[string, string][]} outages
+ */
+export function formatOutageRangesTitle(outages) {
+    if (!Array.isArray(outages) || outages.length === 0) {
+        return '';
+    }
+
+    const lines = [];
+
+    for (let i = 0; i < outages.length; i++) {
+        const a = outages[i][0];
+        const b = outages[i][1];
+
+        lines.push(`${formatLocalDateTime(a)} — ${formatLocalDateTime(b)}`);
+    }
+
+    return lines.join('\n');
+}
+
 export function formatAvailabilityPercent(value0to100) {
     const v = Number(value0to100);
 

@@ -1,5 +1,6 @@
 import {
     getActivePollIntervalMs,
+    HISTORY_REFRESH_AFTER_UTC_HOUR_MS,
     normalizePollChoice,
     POLL_STORAGE_KEY,
     readStoredPollChoice,
@@ -7,8 +8,59 @@ import {
 import {t} from './i18n.js';
 
 let pollTimer = null;
+/** @type {ReturnType<typeof setTimeout> | null} */
+let utcHourHistoryTimer = null;
 /** @type {((opts?: {refreshHistory?: boolean}) => Promise<void>) | null} */
 let pollingLoadFn = null;
+
+/**
+ * Миллисекунды до ближайшего момента «UTC hour start + HISTORY_REFRESH_AFTER_UTC_HOUR_MS».
+ */
+function msUntilNextUtcHourHistoryRefresh() {
+    const buf = HISTORY_REFRESH_AFTER_UTC_HOUR_MS;
+    const now = Date.now();
+    const d = new Date(now);
+    const h0 = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), d.getUTCHours(), 0, 0, 0);
+    const targetThisHour = h0 + buf;
+
+    if (now < targetThisHour) {
+        return targetThisHour - now;
+    }
+
+    return h0 + 3600000 + buf - now;
+}
+
+function armUtcHourHistoryRefresh() {
+    if (utcHourHistoryTimer !== null) {
+        clearTimeout(utcHourHistoryTimer);
+
+        utcHourHistoryTimer = null;
+    }
+
+    if (pollingLoadFn === null) {
+        return;
+    }
+
+    const delay = msUntilNextUtcHourHistoryRefresh();
+
+    utcHourHistoryTimer = window.setTimeout(() => {
+        utcHourHistoryTimer = null;
+
+        if (pollingLoadFn === null) {
+            return;
+        }
+
+        if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+            armUtcHourHistoryRefresh();
+
+            return;
+        }
+
+        void pollingLoadFn({refreshHistory: true}).finally(() => {
+            armUtcHourHistoryRefresh();
+        });
+    }, delay);
+}
 
 function effectivePollIntervalMs() {
     const base = getActivePollIntervalMs();
@@ -155,4 +207,5 @@ export function startLivePolling(loadFn) {
     updateLiveLabel();
 
     armTimer();
+    armUtcHourHistoryRefresh();
 }

@@ -1,6 +1,7 @@
 import {apiUrl, HISTORY_CACHE_TTL_MS, HISTORY_ROWS} from './config.js';
 import {renderActivityBoard} from './activity.js';
-import {formatAvailabilityPercent, formatLocalDateTime} from './format.js';
+import {formatAvailabilityPercent, formatLocalDateTime, formatOutageRangesTitle} from './format.js';
+import {downtimeFractionInHour, parseHistoryServiceStatus} from './historyStatus.js';
 import {t} from './i18n.js';
 
 /** @type {unknown[] | null} */
@@ -17,7 +18,8 @@ function isHistoryCacheFresh() {
 }
 
 /**
- * Доступность по истории: доля проверок со статусом `up` среди явных `up`/`down`.
+ * Доступность по истории: доля «времени up» по часовым сегментам (часы полностью up/down,
+ * смешанный час — по доле простоя в интервалах mixed).
  *
  * @param {string} serviceName
  * @param {unknown} history
@@ -39,13 +41,16 @@ function availabilityPercentFromHistory(serviceName, history) {
             continue;
         }
 
-        const st = sv[serviceName];
+        const parsed = parseHistoryServiceStatus(sv[serviceName]);
 
-        if (st === 'up') {
+        if (parsed.kind === 'up') {
             total++;
             ups++;
-        } else if (st === 'down') {
+        } else if (parsed.kind === 'down') {
             total++;
+        } else if (parsed.kind === 'mixed') {
+            total++;
+            ups += 1 - downtimeFractionInHour(String(row.time || ''), parsed.outages);
         }
     }
 
@@ -211,16 +216,21 @@ export async function loadAll(options = {}) {
                     sep.textContent = ': ';
 
                     const stEl = document.createElement('span');
+                    const ps = parseHistoryServiceStatus(st);
 
-                    if (st === 'up') {
+                    if (ps.kind === 'up') {
                         stEl.className = 'history-status up';
                         stEl.textContent = t('statusUp');
-                    } else if (st === 'down') {
+                    } else if (ps.kind === 'down') {
                         stEl.className = 'history-status down';
                         stEl.textContent = t('statusDown');
+                    } else if (ps.kind === 'mixed') {
+                        stEl.className = 'history-status mixed';
+                        stEl.textContent = t('statusMixed');
+                        stEl.title = formatOutageRangesTitle(ps.outages);
                     } else {
                         stEl.className = 'history-status unknown';
-                        stEl.textContent = String(st);
+                        stEl.textContent = typeof st === 'string' ? st : JSON.stringify(st);
                     }
 
                     entry.appendChild(nm);

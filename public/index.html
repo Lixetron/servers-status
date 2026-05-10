@@ -97,7 +97,7 @@
 
             <p class="muted activity-sub"
                data-i18n="activityHint">
-                Each square is one scheduled check. Scroll horizontally on small screens.
+                Each square is one calendar hour (UTC): green — up the whole hour; red — down the whole hour; orange — both; hover orange for downtime. Newer hours on the right.
             </p>
 
             <div id="activity-wrap">
@@ -127,6 +127,13 @@
                           aria-hidden="true"></span>
 
                     <span data-i18n="legendDown">Unavailable</span>
+                </span>
+
+                <span class="legend-item">
+                    <span class="legend-swatch mixed"
+                          aria-hidden="true"></span>
+
+                    <span data-i18n="legendMixed">Mixed hour</span>
                 </span>
 
                 <span class="legend-item">

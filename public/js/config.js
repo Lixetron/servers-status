@@ -19,10 +19,21 @@ const POLL_MS = {
 };
 
 export const HISTORY_ROWS = 100;
-export const ACTIVITY_MAX_CELLS = 72;
 
-/** Как долго не запрашивать `/api/history` повторно (снижает чтения D1). Статус обновляется каждый тик polling. */
-export const HISTORY_CACHE_TTL_MS = 5 * 60 * 1000;
+/** Если ширина контейнера ещё не известна (0), ограничение по числу ячеек активности. */
+export const ACTIVITY_FALLBACK_MAX_CELLS = 48;
+
+/**
+ * Как долго не запрашивать `/api/history` повторно (меньше обращений к API и D1).
+ * История почасовая — раз в несколько десятков минут достаточно; «живой» статус идёт через `/api/status` каждый тик polling.
+ * Дополнительно срабатывает выровненный по UTC часу таймер (`polling.js`).
+ */
+export const HISTORY_CACHE_TTL_MS = 45 * 60 * 1000;
+
+/**
+ * Запрос истории через столько миллисекунд после начала календарного UTC-часа (буфер под минутный cron и финализацию часа в Worker).
+ */
+export const HISTORY_REFRESH_AFTER_UTC_HOUR_MS = 90_000;
 
 export function apiUrl(path) {
     return `${WORKER_API_ORIGIN || ''}${path}`;
