@@ -2,7 +2,7 @@
   "name": "servers-status",
   "private": true,
   "scripts": {
-    "build:css": "sass public/css/styles.scss public/css/styles.css --style=expanded --no-source-map",
+    "build:css": "sass public/css/styles.scss public/css/styles.css --style=compressed --no-source-map",
     "build:js": "esbuild public/js/main.js --bundle --minify --format=esm --legal-comments=none --outfile=public/js/min.js",
     "watch:css": "sass --watch public/css/styles.scss public/css/styles.css --style=expanded --no-source-map",
     "build": "npm run build:css && npm run build:js",
