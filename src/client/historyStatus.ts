@@ -1,25 +1,23 @@
+import type { ParsedHistoryStatus } from '../shared';
+
 /**
  * Расшифровка значения сервиса в строке истории API:
  * строка up|down (старый и простой час) или объект mixed с интервалами простоя.
- *
- * @param {unknown} raw
- * @returns {{kind: 'up'} | {kind: 'down'} | {kind: 'mixed'; outages: [string, string][]} | {kind: 'unknown'}}
  */
-export function parseHistoryServiceStatus(raw) {
+export function parseHistoryServiceStatus(raw: unknown): ParsedHistoryStatus {
     if (raw === 'up') {
-        return {kind: 'up'};
+        return { kind: 'up' };
     }
 
     if (raw === 'down') {
-        return {kind: 'down'};
+        return { kind: 'down' };
     }
 
     if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
-        const o = /** @type {{status?: unknown; outages?: unknown}} */ (raw);
+        const o = raw as { status?: unknown; outages?: unknown };
 
         if (o.status === 'mixed' && Array.isArray(o.outages)) {
-            /** @type {[string, string][]} */
-            const outages = [];
+            const outages: [string, string][] = [];
 
             for (let i = 0; i < o.outages.length; i++) {
                 const seg = o.outages[i];
@@ -29,20 +27,22 @@ export function parseHistoryServiceStatus(raw) {
                 }
             }
 
-            return {kind: 'mixed', outages};
+            return {
+                kind: 'mixed',
+                outages,
+            };
         }
     }
 
-    return {kind: 'unknown'};
+    return { kind: 'unknown' };
 }
 
 /**
  * Доля времени внутри часа (по метке часа из строки истории), когда сервис был недоступен.
  *
- * @param {string} hourStartIso — начало часа в истории (UTC).
- * @param {[string, string][]} outages
+ * @param hourStartIso — начало часа в истории (UTC).
  */
-export function downtimeFractionInHour(hourStartIso, outages) {
+export function downtimeFractionInHour(hourStartIso: string, outages: [string, string][]): number {
     const h0 = new Date(hourStartIso).getTime();
 
     if (Number.isNaN(h0)) {
@@ -68,7 +68,9 @@ export function downtimeFractionInHour(hourStartIso, outages) {
             continue;
         }
 
-        const span = end >= start ? end - start + 60000 : 60000;
+        const span = end >= start
+            ? end - start + 60000
+            : 60000;
 
         downMs += span;
     }

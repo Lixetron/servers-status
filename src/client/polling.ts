@@ -1,22 +1,16 @@
-import {
-    getActivePollIntervalMs,
-    HISTORY_REFRESH_AFTER_UTC_HOUR_MS,
-    normalizePollChoice,
-    POLL_STORAGE_KEY,
-    readStoredPollChoice,
-} from './config.js';
-import {t} from './i18n.js';
+import type { LoadAllOptions } from './app';
 
-let pollTimer = null;
-/** @type {ReturnType<typeof setTimeout> | null} */
-let utcHourHistoryTimer = null;
-/** @type {((opts?: {refreshHistory?: boolean}) => Promise<void>) | null} */
-let pollingLoadFn = null;
+import { getActivePollIntervalMs, HISTORY_REFRESH_AFTER_UTC_HOUR_MS, normalizePollChoice, POLL_STORAGE_KEY, readStoredPollChoice } from './config';
+import { t } from './i18n';
+
+let pollTimer: ReturnType<typeof setInterval> | null = null;
+let utcHourHistoryTimer: ReturnType<typeof setTimeout> | null = null;
+let pollingLoadFn: ((opts?: LoadAllOptions) => Promise<void>) | null = null;
 
 /**
  * Миллисекунды до ближайшего момента «UTC hour start + HISTORY_REFRESH_AFTER_UTC_HOUR_MS».
  */
-function msUntilNextUtcHourHistoryRefresh() {
+function msUntilNextUtcHourHistoryRefresh(): number {
     const buf = HISTORY_REFRESH_AFTER_UTC_HOUR_MS;
     const now = Date.now();
     const d = new Date(now);
@@ -30,7 +24,7 @@ function msUntilNextUtcHourHistoryRefresh() {
     return h0 + 3600000 + buf - now;
 }
 
-function armUtcHourHistoryRefresh() {
+function armUtcHourHistoryRefresh(): void {
     if (utcHourHistoryTimer !== null) {
         clearTimeout(utcHourHistoryTimer);
 
@@ -56,13 +50,13 @@ function armUtcHourHistoryRefresh() {
             return;
         }
 
-        void pollingLoadFn({refreshHistory: true}).finally(() => {
+        void pollingLoadFn({ refreshHistory: true }).finally(() => {
             armUtcHourHistoryRefresh();
         });
     }, delay);
 }
 
-function effectivePollIntervalMs() {
+function effectivePollIntervalMs(): number | null {
     const base = getActivePollIntervalMs();
 
     if (base === null) {
@@ -76,7 +70,7 @@ function effectivePollIntervalMs() {
     return base;
 }
 
-function armTimer() {
+function armTimer(): void {
     if (pollTimer !== null) {
         clearInterval(pollTimer);
 
@@ -94,11 +88,11 @@ function armTimer() {
             return;
         }
 
-        void pollingLoadFn();
+        void pollingLoadFn!();
     }, ms);
 }
 
-export function updateLiveLabel() {
+export function updateLiveLabel(): void {
     const el = document.getElementById('live-label');
     const bar = document.getElementById('live-bar');
 
@@ -121,21 +115,22 @@ export function updateLiveLabel() {
 
         el.textContent = t('liveUpdates').replace(
             '{seconds}',
-            String(ms !== null ? Math.round(ms / 1000) : ''),
+            String(ms !== null
+                ? Math.round(ms / 1000)
+                : ''),
         );
     }
 }
 
-export function syncPollSelectFromStorage() {
+export function syncPollSelectFromStorage(): void {
     const sel = document.getElementById('poll-select');
 
-    if (sel) {
+    if (sel && sel instanceof HTMLSelectElement) {
         sel.value = readStoredPollChoice();
     }
 }
 
-/** @param {string} value */
-export function setPollIntervalChoice(value) {
+export function setPollIntervalChoice(value: string): void {
     const v = normalizePollChoice(value);
 
     try {
@@ -149,16 +144,8 @@ export function setPollIntervalChoice(value) {
     updateLiveLabel();
 }
 
-export function startLivePolling(loadFn) {
+export function startLivePolling(loadFn: (opts?: LoadAllOptions) => Promise<void>): void {
     pollingLoadFn = loadFn;
-
-    function tickGuard() {
-        if (typeof navigator !== 'undefined' && navigator.onLine === false) {
-            return;
-        }
-
-        void loadFn();
-    }
 
     document.addEventListener('visibilitychange', () => {
         armTimer();
@@ -171,7 +158,7 @@ export function startLivePolling(loadFn) {
     window.addEventListener('online', () => {
         updateLiveLabel();
 
-        void loadFn({refreshHistory: true});
+        void loadFn({ refreshHistory: true });
 
         armTimer();
     });
@@ -189,7 +176,7 @@ export function startLivePolling(loadFn) {
 
         dot.classList.remove('live-dot--flash');
 
-        void dot.offsetWidth;
+        void (dot as HTMLElement).offsetWidth;
 
         dot.classList.add('live-dot--flash');
 

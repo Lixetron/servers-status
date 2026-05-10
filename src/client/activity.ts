@@ -1,7 +1,8 @@
-import {ACTIVITY_FALLBACK_MAX_CELLS} from './config.js';
-import {formatLocalDateTime, formatOutageRangesTitle} from './format.js';
-import {parseHistoryServiceStatus} from './historyStatus.js';
-import {t} from './i18n.js';
+import type { HistoryEntry } from '../shared';
+import { ACTIVITY_FALLBACK_MAX_CELLS } from './config';
+import { formatLocalDateTime, formatOutageRangesTitle } from './format';
+import { parseHistoryServiceStatus } from './historyStatus';
+import { t } from './i18n';
 
 /** Совпадает с `.activity-cell` и `gap` в `styles.scss`. */
 const CELL_PX = 11;
@@ -12,11 +13,12 @@ const ROW_GAP_PX = 12;
 const LABEL_FRAC = 0.42;
 const LABEL_MAX_PX = 180;
 
-/** @type {{history: unknown[]; services: Record<string, unknown>} | null} */
-let activityResizePayload = null;
+interface ActivityResizePayload {
+    history: HistoryEntry[];
+    services: Record<string, unknown>;
+}
 
-/** @type {ResizeObserver | null} */
-let activityResizeObserver = null;
+let activityResizePayload: ActivityResizePayload | null = null;
 
 let activityResizeObserverInstalled = false;
 
@@ -25,13 +27,13 @@ let lastRenderedCellBudget = -1;
 
 /**
  * Совпадает с порядком карточек статуса (ключи из `/api/status`), затем любые прочие имена из истории — по алфавиту.
- *
- * @param {Record<string, unknown> | null | undefined} currentServices
- * @param {Record<string, true>} nameSet
  */
-function orderedActivityServiceNames(currentServices, nameSet) {
-    const ordered = [];
-    const seen = new Set();
+function orderedActivityServiceNames(
+    currentServices: Record<string, unknown> | null | undefined,
+    nameSet: Record<string, true>,
+): string[] {
+    const ordered: string[] = [];
+    const seen = new Set<string>();
 
     if (currentServices && typeof currentServices === 'object') {
         for (const k of Object.keys(currentServices)) {
@@ -51,14 +53,12 @@ function orderedActivityServiceNames(currentServices, nameSet) {
 
 /**
  * Порядок имён в строке «Последние проверки»: как у карточек статуса, затем алфавит для остальных из этой почасовой записи.
- *
- * @param {Record<string, unknown> | null | undefined} currentServices
- * @param {Record<string, unknown> | null | undefined} rowServices
- * @returns {string[]}
  */
-export function orderedHistoryRowServiceNames(currentServices, rowServices) {
-    /** @type {Record<string, true>} */
-    const nameSet = Object.create(null);
+export function orderedHistoryRowServiceNames(
+    currentServices: Record<string, unknown> | null | undefined,
+    rowServices: Record<string, unknown> | null | undefined,
+): string[] {
+    const nameSet: Record<string, true> = Object.create(null);
 
     if (rowServices && typeof rowServices === 'object') {
         for (const k of Object.keys(rowServices)) {
@@ -71,10 +71,8 @@ export function orderedHistoryRowServiceNames(currentServices, rowServices) {
 
 /**
  * Сколько квадратиков помещается по ширине полосы (без горизонтального скролла).
- *
- * @param {number} scrollPx
  */
-function cellsFromScrollWidth(scrollPx) {
+function cellsFromScrollWidth(scrollPx: number): number {
     if (!Number.isFinite(scrollPx) || scrollPx <= 0) {
         return ACTIVITY_FALLBACK_MAX_CELLS;
     }
@@ -84,7 +82,7 @@ function cellsFromScrollWidth(scrollPx) {
     return Math.max(1, n);
 }
 
-function getMaxActivityCells() {
+function getMaxActivityCells(): number {
     const prevScroll = document.querySelector('#activity-board .activity-scroll');
 
     if (prevScroll && prevScroll.clientWidth > 0) {
@@ -104,7 +102,7 @@ function getMaxActivityCells() {
     return ACTIVITY_FALLBACK_MAX_CELLS;
 }
 
-function ensureActivityResizeObserver() {
+function ensureActivityResizeObserver(): void {
     if (activityResizeObserverInstalled || typeof ResizeObserver === 'undefined') {
         return;
     }
@@ -117,7 +115,7 @@ function ensureActivityResizeObserver() {
 
     activityResizeObserverInstalled = true;
 
-    activityResizeObserver = new ResizeObserver(() => {
+    const ro = new ResizeObserver(() => {
         if (!activityResizePayload) {
             return;
         }
@@ -131,14 +129,13 @@ function ensureActivityResizeObserver() {
         internalRenderActivityBoard();
     });
 
-    activityResizeObserver.observe(wrap);
+    ro.observe(wrap);
 }
 
-function internalRenderActivityBoard() {
+function internalRenderActivityBoard(): void {
     const board = document.getElementById('activity-board');
     const emptyEl = document.getElementById('activity-empty');
     const legend = document.getElementById('activity-legend');
-
     const payload = activityResizePayload;
 
     if (!board || !emptyEl || !payload) {
@@ -147,7 +144,6 @@ function internalRenderActivityBoard() {
 
     const historyNewestFirst = payload.history;
     const currentServices = payload.services;
-
     const maxCells = getMaxActivityCells();
 
     board.innerHTML = '';
@@ -170,7 +166,7 @@ function internalRenderActivityBoard() {
 
     const chron = historyNewestFirst.slice().reverse();
     const slice = chron.slice(Math.max(0, chron.length - maxCells));
-    const nameSet = {};
+    const nameSet: Record<string, true> = Object.create(null);
 
     if (currentServices && typeof currentServices === 'object') {
         for (const ck in currentServices) {
@@ -181,7 +177,7 @@ function internalRenderActivityBoard() {
     }
 
     for (let si = 0; si < slice.length; si++) {
-        const sv = slice[si].services || {};
+        const sv = slice[si].services ?? {};
 
         for (const nk in sv) {
             if (Object.prototype.hasOwnProperty.call(sv, nk)) {
@@ -221,26 +217,21 @@ function internalRenderActivityBoard() {
     const unkLabel = t('legendUnknown');
     const mixedLabel = t('legendMixed');
 
-    for (let ri = 0; ri < names.length; ri++) {
-        const svcName = names[ri];
+    for (const svcName of names) {
         const row = document.createElement('div');
-
         row.className = 'activity-row';
 
         const label = document.createElement('div');
-
         label.className = 'activity-name';
         label.textContent = svcName;
         label.title = svcName;
 
         const scroll = document.createElement('div');
-
         scroll.className = 'activity-scroll';
         scroll.setAttribute('role', 'group');
         scroll.setAttribute('aria-label', `${svcName} — ${t('activityTitle')}`);
 
         const cells = document.createElement('div');
-
         cells.className = 'activity-cells';
 
         for (let ci = 0; ci < slice.length; ci++) {
@@ -278,7 +269,9 @@ function internalRenderActivityBoard() {
                     `${svcName}, ${when || ''}, ${tip}. ${detailLine.replace(/\n/g, '; ')}`,
                 );
             } else {
-                cell.title = when ? `${when} — ${tip}` : tip;
+                cell.title = when
+                    ? `${when} — ${tip}`
+                    : tip;
                 cell.setAttribute('aria-label', `${svcName}, ${when || ''}, ${tip}`);
             }
 
@@ -297,7 +290,10 @@ function internalRenderActivityBoard() {
     lastRenderedCellBudget = maxCells;
 }
 
-export function renderActivityBoard(historyNewestFirst, currentServices) {
+export function renderActivityBoard(
+    historyNewestFirst: HistoryEntry[],
+    currentServices: Record<string, unknown>,
+): void {
     activityResizePayload = {
         history: historyNewestFirst,
         services: currentServices,

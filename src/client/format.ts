@@ -1,6 +1,6 @@
-import {getLang} from './i18n.js';
+import { getLang } from './i18n';
 
-export function esc(s) {
+export function esc(s: string): string {
     const d = document.createElement('div');
 
     d.textContent = s;
@@ -8,14 +8,14 @@ export function esc(s) {
     return d.innerHTML;
 }
 
-function dateTimeLocale() {
+function dateTimeLocale(): string {
     return getLang() === 'ru'
         ? 'ru-RU'
         : 'en-US';
 }
 
 /** ISO из API → локальное время и локаль интерфейса. */
-export function formatLocalDateTime(iso) {
+export function formatLocalDateTime(iso: string): string {
     if (!iso) {
         return '';
     }
@@ -36,18 +36,13 @@ export function formatLocalDateTime(iso) {
     }
 }
 
-/** Доля 0–100 → строка процента в локали интерфейса (например `98,5 %`). */
-/**
- * Интервалы простоя для подсказки: каждая строка «с … по …».
- *
- * @param {[string, string][]} outages
- */
-export function formatOutageRangesTitle(outages) {
+/** Интервалы простоя для подсказки: каждая строка «с … по …». */
+export function formatOutageRangesTitle(outages: [string, string][]): string {
     if (!Array.isArray(outages) || outages.length === 0) {
         return '';
     }
 
-    const lines = [];
+    const lines: string[] = [];
 
     for (let i = 0; i < outages.length; i++) {
         const a = outages[i][0];
@@ -59,7 +54,8 @@ export function formatOutageRangesTitle(outages) {
     return lines.join('\n');
 }
 
-export function formatAvailabilityPercent(value0to100) {
+/** Доля 0–100 → строка процента в локали интерфейса (например `98,5 %`). */
+export function formatAvailabilityPercent(value0to100: number): string {
     const v = Number(value0to100);
 
     if (!Number.isFinite(v)) {

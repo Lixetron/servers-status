@@ -1,40 +1,33 @@
-import {
-    apiUrl,
-    HISTORY_CACHE_TTL_MS,
-    HISTORY_FULL_RESYNC_MS,
-    HISTORY_ROWS,
-} from './config.js';
-import {orderedHistoryRowServiceNames, renderActivityBoard} from './activity.js';
-import {formatAvailabilityPercent, formatLocalDateTime, formatOutageRangesTitle} from './format.js';
-import {downtimeFractionInHour, parseHistoryServiceStatus} from './historyStatus.js';
-import {t} from './i18n.js';
+import type { HistoryEntry } from '../shared';
+import { orderedHistoryRowServiceNames, renderActivityBoard } from './activity';
+import { apiUrl, HISTORY_CACHE_TTL_MS, HISTORY_FULL_RESYNC_MS, HISTORY_ROWS } from './config';
+import { formatAvailabilityPercent, formatLocalDateTime, formatOutageRangesTitle } from './format';
+import { downtimeFractionInHour, parseHistoryServiceStatus } from './historyStatus';
+import { t } from './i18n';
 
-/** @type {unknown[] | null} */
-let historyCache = null;
-/** @type {number | null} */
-let historyCacheAt = null;
+/** Ответ `/api/status` (поля сервисов — в основном `up` | `down`). */
+interface StatusApiResponse {
+    updated: string | null;
+    services: Record<string, string>;
+}
+
+export interface LoadAllOptions {
+    refreshHistory?: boolean;
+    historyRefresh?: 'full' | 'incremental';
+}
+
+let historyCache: HistoryEntry[] | null = null;
+let historyCacheAt: number | null = null;
 /** Время успешной полной загрузки `/api/history` (для инкрементальных delta-запросов). */
-let lastHistoryFullFetchAt = null;
+let lastHistoryFullFetchAt: number | null = null;
 
-/**
- * @param {unknown[]} base
- * @param {unknown[]} delta
- */
-function mergeHistoryDelta(base, delta) {
-    if (!Array.isArray(base)) {
-        return [];
-    }
-
-    if (!Array.isArray(delta) || delta.length === 0) {
-        return base.slice();
-    }
-
-    const map = new Map();
+function mergeHistoryDelta(base: HistoryEntry[], delta: HistoryEntry[]): HistoryEntry[] {
+    const map = new Map<string, HistoryEntry>();
 
     for (let i = 0; i < delta.length; i++) {
         const r = delta[i];
 
-        if (r && typeof r === 'object' && r.time) {
+        if (r?.time) {
             map.set(String(r.time), r);
         }
     }
@@ -42,7 +35,7 @@ function mergeHistoryDelta(base, delta) {
     for (let i = 0; i < base.length; i++) {
         const r = base[i];
 
-        if (r && typeof r === 'object' && r.time) {
+        if (r?.time) {
             const k = String(r.time);
 
             if (!map.has(k)) {
@@ -58,22 +51,21 @@ function mergeHistoryDelta(base, delta) {
     return merged.slice(0, HISTORY_ROWS);
 }
 
-async function fetchHistoryFull() {
+async function fetchHistoryFull(): Promise<HistoryEntry[]> {
     const hiRes = await fetch(apiUrl('/api/history'));
 
     if (!hiRes.ok) {
         return [];
     }
 
-    const j = await hiRes.json();
+    const j: unknown = await hiRes.json();
 
-    return Array.isArray(j) ? j : [];
+    return Array.isArray(j)
+        ? (j as HistoryEntry[])
+        : [];
 }
 
-/**
- * @param {string} sinceIso — уже имеющийся самый новый `time` в кэше (новее этого ищем в delta).
- */
-async function fetchHistoryDelta(sinceIso) {
+async function fetchHistoryDelta(sinceIso: string): Promise<HistoryEntry[] | null> {
     const u = `${apiUrl('/api/history/delta')}?since=${encodeURIComponent(sinceIso)}`;
     const dRes = await fetch(u);
 
@@ -81,12 +73,14 @@ async function fetchHistoryDelta(sinceIso) {
         return null;
     }
 
-    const j = await dRes.json();
+    const j: unknown = await dRes.json();
 
-    return Array.isArray(j) ? j : null;
+    return Array.isArray(j)
+        ? (j as HistoryEntry[])
+        : null;
 }
 
-function isHistoryCacheFresh() {
+function isHistoryCacheFresh(): boolean {
     return (
         Array.isArray(historyCache) &&
         historyCacheAt !== null &&
@@ -94,15 +88,7 @@ function isHistoryCacheFresh() {
     );
 }
 
-/**
- * Доступность по истории: доля «времени up» по часовым сегментам (часы полностью up/down,
- * смешанный час — по доле простоя в интервалах mixed).
- *
- * @param {string} serviceName
- * @param {unknown} history
- * @returns {number | null}
- */
-function availabilityPercentFromHistory(serviceName, history) {
+function availabilityPercentFromHistory(serviceName: string, history: HistoryEntry[]): number | null {
     if (!Array.isArray(history) || history.length === 0) {
         return null;
     }
@@ -112,7 +98,7 @@ function availabilityPercentFromHistory(serviceName, history) {
 
     for (let i = 0; i < history.length; i++) {
         const row = history[i];
-        const sv = row && row.services;
+        const sv = row.services;
 
         if (!sv || typeof sv !== 'object') {
             continue;
@@ -138,13 +124,7 @@ function availabilityPercentFromHistory(serviceName, history) {
     return (100 * ups) / total;
 }
 
-/**
- * @param {{refreshHistory?: boolean; historyRefresh?: 'full' | 'incremental'}} [options]
- * - По умолчанию история берётся из кэша, пока не истёк TTL — тогда запрашивается история с сервера.
- * - `refreshHistory: true` — обновить историю с сервера (полная или delta см. ниже).
- * - `historyRefresh: 'full'` — принудительно только `GET /api/history`.
- */
-export async function loadAll(options = {}) {
+export async function loadAll(options: LoadAllOptions = {}): Promise<void> {
     const overallDiv = document.getElementById('overall');
     const servicesDiv = document.getElementById('services');
     const updatedDiv = document.getElementById('updated');
@@ -153,16 +133,27 @@ export async function loadAll(options = {}) {
     const historyEmpty = document.getElementById('history-empty');
     const activityEmpty = document.getElementById('activity-empty');
 
+    if (
+        !overallDiv ||
+        !servicesDiv ||
+        !updatedDiv ||
+        !historyBody ||
+        !historyTable ||
+        !historyEmpty
+    ) {
+        return;
+    }
+
     const refreshHistory = options.refreshHistory === true || !isHistoryCacheFresh();
 
     try {
-        let data;
-        let history;
+        let data: StatusApiResponse;
+        let history: HistoryEntry[];
 
         if (refreshHistory) {
-            const stRes = await fetch(apiUrl('/api/status'), {cache: 'no-store'});
+            const stRes = await fetch(apiUrl('/api/status'), { cache: 'no-store' });
 
-            data = await stRes.json();
+            data = (await stRes.json()) as StatusApiResponse;
 
             const newestKnown =
                 options.historyRefresh !== 'full' &&
@@ -191,13 +182,17 @@ export async function loadAll(options = {}) {
                 }
             }
 
-            historyCache = Array.isArray(history) ? history : [];
+            historyCache = Array.isArray(history)
+                ? history
+                : [];
             historyCacheAt = Date.now();
         } else {
-            const stRes = await fetch(apiUrl('/api/status'), {cache: 'no-store'});
+            const stRes = await fetch(apiUrl('/api/status'), { cache: 'no-store' });
 
-            data = await stRes.json();
-            history = Array.isArray(historyCache) ? historyCache : [];
+            data = (await stRes.json()) as StatusApiResponse;
+            history = Array.isArray(historyCache)
+                ? historyCache
+                : [];
         }
 
         servicesDiv.innerHTML = '';
@@ -220,7 +215,9 @@ export async function loadAll(options = {}) {
 
                 el.className = 'service';
 
-                const label = status === 'up' ? t('statusUp') : t('statusDown');
+                const label = status === 'up'
+                    ? t('statusUp')
+                    : t('statusDown');
 
                 const main = document.createElement('div');
 
@@ -255,16 +252,22 @@ export async function loadAll(options = {}) {
                 servicesDiv.appendChild(el);
             }
 
-            overallDiv.textContent = allUp ? t('overallAllUp') : t('overallSomeDown');
+            overallDiv.textContent = allUp
+                ? t('overallAllUp')
+                : t('overallSomeDown');
             overallDiv.removeAttribute('data-i18n');
-            overallDiv.className = `overall ${allUp ? 'up' : 'down'}`;
+            overallDiv.className = `overall ${allUp
+                ? 'up'
+                : 'down'}`;
 
             updatedDiv.textContent = data.updated
                 ? `${t('lastUpdated')} ${formatLocalDateTime(data.updated)}`
                 : '';
         }
 
-        renderActivityBoard(Array.isArray(history) ? history : [], data.services || {});
+        renderActivityBoard(Array.isArray(history)
+            ? history
+            : [], data.services || {});
 
         if (!Array.isArray(history) || history.length === 0) {
             historyEmpty.textContent = t('historyEmpty');
@@ -327,7 +330,9 @@ export async function loadAll(options = {}) {
                         stEl.title = formatOutageRangesTitle(ps.outages);
                     } else {
                         stEl.className = 'history-status unknown';
-                        stEl.textContent = typeof st === 'string' ? st : JSON.stringify(st);
+                        stEl.textContent = typeof st === 'string'
+                            ? st
+                            : JSON.stringify(st);
                     }
 
                     entry.appendChild(nm);
@@ -346,8 +351,8 @@ export async function loadAll(options = {}) {
 
         document.dispatchEvent(new CustomEvent('servers-status:refresh'));
     } catch {
-        document.getElementById('overall').textContent = t('errorStatus');
-        document.getElementById('overall').removeAttribute('data-i18n');
+        document.getElementById('overall')!.textContent = t('errorStatus');
+        document.getElementById('overall')!.removeAttribute('data-i18n');
 
         historyEmpty.textContent = t('errorHistory');
         historyEmpty.setAttribute('data-i18n', 'errorHistory');

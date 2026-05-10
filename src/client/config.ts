@@ -12,13 +12,15 @@ export const POLL_STORAGE_KEY = 'poll';
 
 export const DEFAULT_POLL_CHOICE = '15';
 
-const POLL_MS = {
+export type PollChoice = '15' | '30' | '60' | 'off';
+
+const POLL_MS: Record<Exclude<PollChoice, 'off'>, number> = {
     '15': 15_000,
     '30': 30_000,
     '60': 60_000,
 };
 
-/** Число почасовых записей в UI и в кэше; то же N, что `MAX_HISTORY` в `src/index.ts` (Worker). */
+/** Число почасовых записей в UI и в кэше; то же N, что `MAX_HISTORY` в Worker. */
 export const HISTORY_ROWS = 100;
 
 /** Если ширина контейнера ещё не известна (0), ограничение по числу ячеек активности. */
@@ -27,7 +29,7 @@ export const ACTIVITY_FALLBACK_MAX_CELLS = 48;
 /**
  * Как долго не запрашивать `/api/history` повторно (меньше обращений к API и D1).
  * История почасовая — раз в несколько десятков минут достаточно; «живой» статус идёт через `/api/status` каждый тик polling.
- * Дополнительно срабатывает выровненный по UTC часу таймер (`polling.js`).
+ * Дополнительно срабатывает выровненный по UTC часу таймер (`polling.ts`).
  */
 export const HISTORY_CACHE_TTL_MS = 45 * 60 * 1000;
 
@@ -39,12 +41,11 @@ export const HISTORY_REFRESH_AFTER_UTC_HOUR_MS = 90_000;
 /** Полная перезагрузка `/api/history` раз в этот интервал (подтягивает усечение хвоста на сервере). Инкремент — `delta`. */
 export const HISTORY_FULL_RESYNC_MS = 24 * 60 * 60 * 1000;
 
-export function apiUrl(path) {
+export function apiUrl(path: string): string {
     return `${WORKER_API_ORIGIN || ''}${path}`;
 }
 
-/** @param {string | null | undefined} raw */
-export function normalizePollChoice(raw) {
+export function normalizePollChoice(raw: string | null | undefined): PollChoice {
     if (raw === '15' || raw === '30' || raw === '60' || raw === 'off') {
         return raw;
     }
@@ -52,7 +53,7 @@ export function normalizePollChoice(raw) {
     return DEFAULT_POLL_CHOICE;
 }
 
-export function readStoredPollChoice() {
+export function readStoredPollChoice(): PollChoice {
     try {
         const v = localStorage.getItem(POLL_STORAGE_KEY);
 
@@ -62,8 +63,9 @@ export function readStoredPollChoice() {
     }
 }
 
-/** @returns {'en' | 'ru' | null} */
-export function readStoredLangChoice() {
+export type UiLang = 'en' | 'ru';
+
+export function readStoredLangChoice(): UiLang | null {
     try {
         const v = localStorage.getItem(LANG_KEY);
 
@@ -78,7 +80,7 @@ export function readStoredLangChoice() {
 }
 
 /** Интервал для активной вкладки: миллисекунды или `null`, если автообновление выключено. */
-export function getActivePollIntervalMs() {
+export function getActivePollIntervalMs(): number | null {
     const c = readStoredPollChoice();
 
     if (c === 'off') {
