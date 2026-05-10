@@ -1,0 +1,21 @@
+{
+  "name": "servers-status",
+  "private": true,
+  "scripts": {
+    "build:css": "sass public/css/styles.scss public/css/styles.css --style=expanded --no-source-map",
+    "watch:css": "sass --watch public/css/styles.scss public/css/styles.css --style=expanded --no-source-map",
+    "build": "npm run build:css",
+    "dev": "npm run build:css && wrangler dev",
+    "deploy": "npm run build:css && wrangler deploy",
+    "d1:apply": "wrangler d1 migrations apply servers-status --local",
+    "d1:apply:remote": "wrangler d1 migrations apply servers-status --remote",
+    "cf-typegen": "wrangler types",
+    "preview:static": "npm run build:css && npx --yes serve public -l 8080"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20250508.0",
+    "sass": "^1.81.0",
+    "typescript": "^5.8.3",
+    "wrangler": "^4.14.1"
+  }
+}

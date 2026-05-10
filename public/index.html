@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Server Status</title>
+    <link rel="icon"
+          href="favicon.svg"
+          type="image/svg+xml">
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1.0">
+    <meta name="description"
+          content="Live server availability: current status per service, recent health checks, and an activity timeline.">
+    <link rel="stylesheet"
+          href="css/styles.css">
+</head>
+
+<body>
+    <div class="container">
+        <div class="header-row">
+            <h1 data-i18n="heading">
+                System Status
+            </h1>
+
+            <div class="lang-wrap">
+                <label for="lang-select"
+                       data-i18n="language">
+                    Language
+                </label>
+
+                <select id="lang-select"
+                        aria-label="Language">
+                    <option value="en">English</option>
+
+                    <option value="ru">Русский</option>
+                </select>
+            </div>
+
+            <div class="poll-wrap">
+                <label for="poll-select"
+                       data-i18n="pollInterval">
+                    Refresh interval
+                </label>
+
+                <select id="poll-select">
+                    <option value="15"
+                            data-i18n="poll15">
+                        15 s
+                    </option>
+
+                    <option value="30"
+                            data-i18n="poll30">
+                        30 s
+                    </option>
+
+                    <option value="60"
+                            data-i18n="poll60">
+                        60 s
+                    </option>
+
+                    <option value="off"
+                            data-i18n="pollOff">
+                        Off
+                    </option>
+                </select>
+            </div>
+        </div>
+
+        <div class="subtitle"
+             data-i18n="subtitle">
+            Live server availability
+        </div>
+
+        <div class="live-bar"
+             id="live-bar"
+             aria-live="polite">
+            <span class="live-dot"
+                  aria-hidden="true"></span>
+
+            <span id="live-label"></span>
+        </div>
+
+        <div class="card">
+            <div id="overall"
+                 class="overall"
+                 data-i18n="checking">
+                Checking...
+            </div>
+
+            <div id="services"></div>
+        </div>
+
+        <div class="card">
+            <h2 data-i18n="activityTitle">
+                Activity
+            </h2>
+
+            <p class="muted activity-sub"
+               data-i18n="activityHint">
+                Each square is one scheduled check. Scroll horizontally on small screens.
+            </p>
+
+            <div id="activity-wrap">
+                <p class="muted"
+                   id="activity-empty"
+                   data-i18n="historyLoading">
+                    Loading...
+                </p>
+
+                <div id="activity-board"
+                     class="activity-board"
+                     hidden></div>
+            </div>
+
+            <div class="activity-legend"
+                 id="activity-legend"
+                 hidden>
+                <span class="legend-item">
+                    <span class="legend-swatch up"
+                          aria-hidden="true"></span>
+
+                    <span data-i18n="legendUp">Available</span>
+                </span>
+
+                <span class="legend-item">
+                    <span class="legend-swatch down"
+                          aria-hidden="true"></span>
+
+                    <span data-i18n="legendDown">Unavailable</span>
+                </span>
+
+                <span class="legend-item">
+                    <span class="legend-swatch unknown"
+                          aria-hidden="true"></span>
+
+                    <span data-i18n="legendUnknown">No data</span>
+                </span>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2 data-i18n="recentChecks">Recent checks</h2>
+
+            <div id="history-wrap">
+                <p class="muted"
+                   id="history-empty"
+                   data-i18n="historyLoading">
+                    Loading history...
+                </p>
+
+                <table class="history-table"
+                       id="history-table"
+                       hidden>
+                    <thead>
+                    <tr>
+                        <th data-i18n="colTime">Date &amp; time</th>
+                        <th data-i18n="colServices">Services</th>
+                    </tr>
+                    </thead>
+
+                    <tbody id="history-body"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="footer"
+             id="updated"></div>
+    </div>
+
+    <script type="module"
+            src="js/main.js"></script>
+</body>
+
+</html>
