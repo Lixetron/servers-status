@@ -59,14 +59,34 @@ export function aggregateSamples(samples: Array<{ t: string; st: 'up' | 'down' }
 }
 
 async function trimHistory(db: D1Database): Promise<void> {
+    /** Без ROW_NUMBER(): оконная функция заставляет читать все строки и раздувает rows read в D1. */
+    const excess = await db
+        .prepare(
+            `SELECT 1 AS ok
+             FROM history
+             ORDER BY time ASC
+             LIMIT 1 OFFSET ?`,
+        )
+        .bind(MAX_HISTORY)
+        .first<{ ok: number }>();
+
+    if (!excess) {
+        return;
+    }
+
     await db
         .prepare(
             `DELETE
              FROM history
-             WHERE id IN (SELECT id
-                          FROM (SELECT id, ROW_NUMBER() OVER (ORDER BY time DESC) AS rn
-                                FROM history)
-                          WHERE rn > ?)`,
+             WHERE id IN (
+                   SELECT id
+                   FROM (
+                     SELECT id
+                     FROM history
+                     ORDER BY time DESC
+                     LIMIT -1 OFFSET ?
+                   )
+                 )`,
         )
         .bind(MAX_HISTORY)
         .run();
